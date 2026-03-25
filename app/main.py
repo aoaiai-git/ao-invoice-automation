@@ -198,6 +198,15 @@ async def handle_approval(invoice_data: dict, payload: dict, user_name: str):
         freee_result=freee_result
     )
 
+    # 承認スレッドへ完了通知を返信
+    await slack.post_completion_reply(
+        channel=channel,
+        ts=message_ts,
+        vendor_name=invoice_data.get("vendor_name"),
+        drive_url=drive_url,
+        freee_result=freee_result
+    )
+
 
 async def handle_rejection(invoice_data: dict, payload: dict, user_name: str):
     """請求書却下処理"""
