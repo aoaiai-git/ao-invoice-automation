@@ -3,6 +3,7 @@
 import os
 import json
 import logging
+import requests
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -59,8 +60,6 @@ class SlackHandler:
         # Slackの制限：ボタンvalueは2000文字まで
         # PDF dataが大きい場合はtruncate
         if len(button_value) > 1990:
-            truncated = invoice_data.copy()
-            truncated["pdf_data_b64"] = ""
             button_value = json.dumps({
                 "msg_id": invoice_data.get("msg_id"),
                 "subject": subject,
@@ -219,3 +218,26 @@ class SlackHandler:
         except SlackApiError as e:
             logger.error(f"Slack thread reply error: {e}")
             raise
+
+    async def download_slack_file(self, url_private: str) -> bytes:
+        """Slack プライベートURLからファイルをダウンロード
+
+        Slack のファイル URL は認証が必要なため、Bot Token で Authorization ヘッダを付与して取得。
+        """
+        if not url_private:
+            logger.warning("download_slack_file: no URL provided")
+            return None
+
+        token = os.environ.get("SLACK_BOT_TOKEN", "")
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            resp = requests.get(url_private, headers=headers, allow_redirects=True, timeout=30)
+            if resp.status_code == 200:
+                logger.info(f"Downloaded Slack file: {len(resp.content)} bytes from {url_private[:60]}...")
+                return resp.content
+            else:
+                logger.error(f"Failed to download Slack file: HTTP {resp.status_code} from {url_private[:60]}")
+                return None
+        except Exception as e:
+            logger.error(f"Error downloading Slack file: {e}")
+            return None
