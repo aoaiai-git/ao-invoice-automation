@@ -24,8 +24,12 @@ class GmailHandler:
         token_json = os.environ.get("GOOGLE_TOKEN_JSON", "")
         if not token_json:
             raise ValueError("GOOGLE_TOKEN_JSON not set")
-        token_data = json.loads(token_json)
-        creds = Credentials(token=token_data.get("access_token"), refresh_token=token_data.get("refresh_token"), token_uri="https://oauth2.googleapis.com/token", client_id=token_data.get("client_id"), client_secret=token_data.get("client_secret"), scopes=token_data.get("scopes", ["https://www.googleapis.com/auth/gmail.readonly"]))
+        # Support both raw JSON and base64-encoded JSON
+        try:
+            token_data = json.loads(token_json)
+        except (json.JSONDecodeError, ValueError):
+            token_data = json.loads(base64.b64decode(token_json).decode('utf-8'))
+        creds = Credentials(token=token_data.get("token") or token_data.get("access_token"), refresh_token=token_data.get("refresh_token"), token_uri="https://oauth2.googleapis.com/token", client_id=token_data.get("client_id"), client_secret=token_data.get("client_secret"), scopes=token_data.get("scopes", ["https://www.googleapis.com/auth/gmail.readonly"]))
         if creds.expired and creds.refresh_token:
             creds.refresh(Request())
         self._service = build("gmail", "v1", credentials=creds)
