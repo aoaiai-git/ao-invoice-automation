@@ -172,7 +172,7 @@ class FreeeReconcileClient:
         return items
 
     def get_invoice(self, invoice_id: int) -> dict:
-        "" 請求書1件を取得"""
+        """請求書1件を取得"""
         data = self._get(f"/api/1/invoices/{invoice_id}", {"company_id": self.company_id})
         return data.get("invoice", {})
 
@@ -200,7 +200,7 @@ class FreeeReconcileClient:
         walletable_id: int = None,
         walletable_type: str = "bank_account",
     ) -> dict:
-        "" 請求書に対して入金消込を実行
+        """請求書に対して入金消込を実行
 
         freee API: 請求書のdeal_idに対してpaymentを追加し、
         invoice を settled 状態にする。
