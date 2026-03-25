@@ -84,4 +84,4 @@ class InvoiceAnalyzer:
             return result
         except Exception as e:
             logger.error(f"Invoice analysis failed: {e}", exc_info=True)
-            return {"vendor_name": sender.split("<")[0].strip() if "<" in sender else sender, "invoice_number": "", "invoice_date": "", "due_date": "", "amount_excl_tax": 0, "tax_amount": 0, "amount_incl_tax": 0, "currency": "JPY", "description": subject, "suggested_account": "雑費"�,"suggested_account_id": 675785162, "confidence": "low", "notes": f"自動分析エラー: {str(e)}"}
+            return {"vendor_name": sender.split("<")[0].strip() if "<" in sender else sender, "invoice_number": "", "invoice_date": "", "due_date": "", "amount_excl_tax": 0, "tax_amount": 0, "amount_incl_tax": 0, "currency": "JPY", "description": subject, "suggested_account": "雑費","suggested_account_id": 675785162, "confidence": "low", "notes": f"自動分析エラー: {str(e)}"}
