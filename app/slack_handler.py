@@ -86,10 +86,10 @@ class SlackHandler:
             {
                 "type": "section",
                 "fields": [
-                    {"type": "mrkdwn", "text": f"+è«‹æ±‚å…ƒ*\n{vendor}"},
-                    {"type": "mrkdwn", "text": f"*é‡‘é¡*\n{famount_str}"},
+                    {"type": "mrkdwn", "text": f"*è«‹æ±‚å…ƒ*\n{vendor}"},
+                    {"type": "mrkdwn", "text": f"*é‡‘é¡*\n{amount_str}"},
                     {"type": "mrkdwn", "text": f"*è¯‹æ±‚æ—¥*\n{invoice_date}"},
-                    {"type": "mrkdwn", "text": f"*è«‹æ±‚æ›¸ç•ªå·*\nt{nvoice_number or 'ï¼ˆè¨˜è¼‰ãªã—ï¼‰'}"},
+                    {"type": "mrkdwn", "text": f"*è«‹æ±‚æ›¸ç•ªå·*\{invoice_number or 'ï¼ˆè¨˜è¼‰ãªã—ï¼‰'}"},
                 ]
             },
             {
