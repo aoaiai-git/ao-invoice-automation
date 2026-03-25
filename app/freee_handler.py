@@ -3,7 +3,7 @@
 import os
 import logging
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -29,59 +29,100 @@ class FreeeHandler:
             "client_id": self.client_id,
             "client_secret": self.client_secret,
             "refresh_token": self.refresh_token,
-        })
+        }, timeout=30)
 
         if resp.status_code != 200:
-            raise ValueError(f"freee token refresh failed: {resp.status_code} {resp.text}")
+            raise Exception(f"Failed to get access token: {resp.status_code} {resp.text}")
 
-        data = resp.json()
-        self._access_token = data["access_token"]
-
-        # 新しいリフレッシュトークンを更新
-        new_refresh = data.get("refresh_token")
-        if new_refresh and new_refresh != self.refresh_token:
-            self.refresh_token = new_refresh
-            self._update_railway_env("FREEE_REFRESH_TOKEN", new_refresh)
-
+        token_data = resp.json()
+        self._access_token = token_data["access_token"]
+        # リフレッシュトークンの更新
+        if "refresh_token" in token_data:
+            self.refresh_token = token_data["refresh_token"]
         return self._access_token
 
-    def _update_railway_env(self, key: str, value: str):
-        """Railway環境変数を更新（ao-daily-batchと同じ仕組み）"""
-        railway_token = os.environ.get("RAILWAY_API_TOKEN", "")
-        project_id = os.environ.get("RAILWAY_PROJECT_ID", "")
-        env_id = os.environ.get("RAILWAY_ENVIRONMENT_ID", "")
-        service_id = os.environ.get("RAILWAY_SERVICE_ID", "")
+    async def check_duplicate(self, invoice_data: dict) -> dict:
+        """freeeに同じ請求書が既に登録されていないか確認
 
-        if not all([railway_token, project_id, env_id, service_id]):
-            logger.warning("Railway credentials not set, skipping env update")
-            return
+        Returns:
+            既存の取引dict（重複あり）またはNone（重複なし）
+        """
+        vendor_name = invoice_data.get("vendor_name", "")
+        invoice_number = invoice_data.get("invoice_number", "")
+        invoice_date = invoice_data.get("invoice_date", "")
+        amount_incl_tax = invoice_data.get("amount_incl_tax", 0)
 
-        query = """
-        mutation {
-            variableUpsert(input: {
-                projectId: "%s",
-                environmentId: "%s",
-                serviceId: "%s",
-                name: "%s",
-                value: "%s"
-            })
-        }
-        """ % (project_id, env_id, service_id, key, value)
+        # 判定に使える情報がなければスキップ
+        if not vendor_name and not invoice_number:
+            logger.info("check_duplicate: no vendor_name or invoice_number, skipping")
+            return None
 
         try:
-            resp = requests.post(
-                "https://backboard.railway.com/graphql/v2",
-                json={"query": query},
-                headers={"Authorization": f"Bearer {railway_token}",
-                         "Content-Type": "application/json"},
-                timeout=10
+            token = self._get_access_token()
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+            }
+
+            params = {
+                "company_id": self.company_id,
+                "type": "expense",
+                "limit": 50,
+                "offset": 0,
+            }
+
+            # 請求日 ±7日の範囲で検索
+            if invoice_date:
+                try:
+                    dt = datetime.strptime(invoice_date, "%Y-%m-%d")
+                    params["start_issue_date"] = (dt - timedelta(days=7)).strftime("%Y-%m-%d")
+                    params["end_issue_date"] = (dt + timedelta(days=7)).strftime("%Y-%m-%d")
+                except ValueError:
+                    pass
+
+            resp = requests.get(
+                f"{FREEE_API_BASE}/api/1/deals",
+                headers=headers,
+                params=params,
+                timeout=15
             )
-            logger.info(f"Railway env update {key}: {resp.status_code}")
+
+            if resp.status_code != 200:
+                logger.warning(f"freee duplicate check failed: {resp.status_code} {resp.text[:200]}")
+                return None
+
+            deals = resp.json().get("deals", [])
+            logger.info(f"freee duplicate check: found {len(deals)} deals in range")
+
+            for deal in deals:
+                # ① 請求書番号で一致（最優先・最確実）
+                deal_ref = deal.get("ref_number", "") or ""
+                if invoice_number and deal_ref and deal_ref == invoice_number:
+                    logger.info(f"Duplicate deal found by invoice_number={invoice_number}: id={deal['id']}")
+                    return deal
+
+                # ② 取引先名 + 金額で一致（請求書番号がない場合のフォールバック）
+                if not invoice_number and vendor_name:
+                    partner_name = deal.get("partner_name", "") or ""
+                    if vendor_name and partner_name and (
+                        vendor_name in partner_name or partner_name in vendor_name
+                    ):
+                        for detail in deal.get("details", []):
+                            if int(detail.get("amount", 0)) == int(amount_incl_tax):
+                                logger.info(
+                                    f"Duplicate deal found by vendor+amount: "
+                                    f"vendor={vendor_name}, amount={amount_incl_tax}, id={deal['id']}"
+                                )
+                                return deal
+
+            return None
+
         except Exception as e:
-            logger.error(f"Railway env update failed: {e}")
+            logger.error(f"Error checking freee duplicate: {e}", exc_info=True)
+            return None  # チェック失敗時は重複なしとして処理継続
 
     async def create_expense(self, invoice_data: dict) -> dict:
-        """freeeに支出取引を登録"""
+        """freeeに経費（支払い）を登録"""
         access_token = self._get_access_token()
 
         vendor_name = invoice_data.get("vendor_name", "不明")
@@ -119,39 +160,12 @@ class FreeeHandler:
             amount_excl_tax = int(amount_incl_tax / 1.1)
             tax_amount = amount_incl_tax - amount_excl_tax
 
-        deal_payload = {
-            "company_id": self.company_id,
-            "issue_date": invoice_date,
-            "type": "expense",
-            "partner_name": vendor_name,
-            "ref_number": invoice_number or None,
-            "details": [
-                {
-                    "account_item_id": account_item_id,
-                    "tax_code": tax_code,
-                    "amount": amount_incl_tax,
-                    "description": memo,
-                    "vat": tax_amount,
-                }
-            ],
-            "payments": [
-                {
-                    "from_walletable_type": "bank_account",
-                    "from_walletable_id": None,  # 未払金として登録
-                    "amount": amount_incl_tax,
-                    "date": invoice_date,
-                }
-            ]
-        }
-
-        # 未払金として登録（支払口座を指定しない場合）
-        # - deal_paymentは省略してシンプルな取引として登録
         simple_payload = {
             "company_id": self.company_id,
             "issue_date": invoice_date,
             "type": "expense",
             "partner_name": vendor_name,
-            "ref_number": invoice_number if invoice_number else None,
+            "ref_number": invoice_number or None,
             "details": [
                 {
                     "account_item_id": account_item_id,
@@ -183,9 +197,9 @@ class FreeeHandler:
                            f"amount={amount_incl_tax}, account_id={account_item_id}")
                 return result
             else:
-                logger.error(f"freee deal creation failed: {resp.status_code} {resp.text}")
-                return {"error": resp.text, "status_code": resp.status_code}
+                logger.error(f"freee API error: {resp.status_code} {resp.text[:500]}")
+                raise Exception(f"freee API error: {resp.status_code}")
 
         except Exception as e:
-            logger.error(f"freee API call failed: {e}", exc_info=True)
-            return {"error": str(e)}
+            logger.error(f"Error creating freee deal: {e}", exc_info=True)
+            raise
