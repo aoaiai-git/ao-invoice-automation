@@ -162,23 +162,60 @@ class SlackHandler:
             logger.error(f"Slack post error: {e}")
             raise
 
-    async def update_approval_message(self, channel: str, ts: str, approved: bool, result_text: str):
+    async def update_invoice_message(self, channel: str, ts: str, status: str, user_name: str, drive_url: str = None, freee_result: dict = None):
         """承認/却下後にSlackメッセージを更新"""
-        status = "✅ 承認済み・freee登録完了" if approved else "❌ 却下済み"
+        if status == "approved":
+            status_text = "✅ 承認済み・freee登録完了"
+            result_parts = [f"承認者: {user_name}"]
+            if drive_url:
+                result_parts.append(f"<{drive_url}|📁 Googleドライブで開く>")
+            if freee_result:
+                deal_id = freee_result.get("id", "")
+                if deal_id:
+                    result_parts.append(f"freee取引ID: {deal_id}")
+            result_text = "\n".join(result_parts)
+        else:
+            status_text = "❌ 却下済み"
+            result_text = f"却下者: {user_name}"
+
         blocks = [
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*{status}*\n{result_text}"}
+                "text": {"type": "mrkdwn", "text": f"*{status_text}*\n{result_text}"}
             }
         ]
         try:
             self.client.chat_update(
                 channel=channel,
                 ts=ts,
-                text=status,
+                text=status_text,
                 blocks=blocks,
             )
-            logger.info(f"Slack message updated: ts={ts}, approved={approved}")
+            logger.info(f"Slack message updated: ts={ts}, status={status}")
         except SlackApiError as e:
             logger.error(f"Slack update error: {e}")
+            raise
+
+    async def post_completion_reply(self, channel: str, ts: str, vendor_name: str = None, drive_url: str = None, freee_result: dict = None):
+        """承認完了後にスレッドへ完了通知を返信"""
+        lines = ["freeeに登録して請求書をGoogleドライブに格納しました。"]
+        if vendor_name:
+            lines.append(f"取引先: {vendor_name}")
+        if drive_url:
+            lines.append(f"<{drive_url}|📁 Googleドライブで開く>")
+        if freee_result:
+            deal_id = freee_result.get("id", "")
+            if deal_id:
+                lines.append(f"💼 freee取引ID: {deal_id}")
+
+        text = "\n".join(lines)
+        try:
+            self.client.chat_postMessage(
+                channel=channel,
+                thread_ts=ts,
+                text=text,
+            )
+            logger.info(f"Posted completion thread reply: ts={ts}")
+        except SlackApiError as e:
+            logger.error(f"Slack thread reply error: {e}")
             raise
