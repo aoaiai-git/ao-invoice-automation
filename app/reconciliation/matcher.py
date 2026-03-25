@@ -1,4 +1,4 @@
-"""7スヅップ入金消込マッチングエンジン"""
+"""7ステップ入金消込マッチングエンジン"""
 
 import re
 import logging
@@ -243,7 +243,7 @@ class MatchingEngine:
         return 0.88 <= ratio <= 1.12
 
     def _partner_in_memo(self, inv: dict, memo: str) -> bool:
-        "" 請求書の取引先名がメモ欄に含まれるか（部分一致）"""
+        """請求書の取引先名がメモ欄に含まれるか（部分一致）"""
         partner = self._normalize(
             inv.get("partner_name", "") or inv.get("partner_display_name", "") or ""
         )
