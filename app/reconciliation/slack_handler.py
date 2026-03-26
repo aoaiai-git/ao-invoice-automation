@@ -49,7 +49,7 @@ async def handle_reconciliation_action(
 
     if action_id == "recon_approve":
         await _handle_approve(txn_id, invoice_id_str, invoice_no, amount, value_data,
-  #                            user_name, message_ts, sheets, freee, notifier)
+                               user_name, message_ts, sheets, freee, notifier)
 
     elif action_id == "recon_reject":
         await _handle_reject(txn_id, amount, user_name, message_ts, sheets, notifier)
