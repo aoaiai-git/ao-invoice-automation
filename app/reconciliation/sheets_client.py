@@ -194,3 +194,5 @@ class ReconciliationSheetsClient:
         except Exception as e:
             logger.error(f"Failed to ensure sheets: {e}", exc_info=True)
             raise
+
+# build: 2026-03-26
