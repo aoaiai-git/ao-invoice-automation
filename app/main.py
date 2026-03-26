@@ -122,6 +122,25 @@ async def slack_webhook(request: Request):
     except Exception:
         invoice_data = {}
 
+
+    # ===== ボタン二重押し防止：メッセージが既に処理済かチェック =====
+    # actionsブロックが存在しない = 承認/却下済でボタンが除去されている
+    if action_id in ("approve_invoice", "reject_invoice"):
+        _message_blocks = payload.get("message", {}).get("blocks", [])
+        _has_action_block = any(b.get("type") == "actions" for b in _message_blocks)
+        if not _has_action_block:
+            _channel = payload.get("channel", {}).get("id", "")
+            _user_id = payload.get("user", {}).get("id", "")
+            try:
+                slack.client.chat_postEphemeral(
+                    channel=_channel,
+                    user=_user_id,
+                    text="⚠️ この請求書は既に処理済みです。"
+                )
+            except Exception as _e:
+                logger.error(f"Failed to post ephemeral (already processed): {_e}")
+            return JSONResponse({"ok": True})
+
     if action_id == "approve_invoice":
         await handle_approval(invoice_data, payload, user_name)
     elif action_id == "reject_invoice":
