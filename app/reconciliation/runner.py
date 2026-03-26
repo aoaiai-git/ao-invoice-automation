@@ -224,9 +224,9 @@ def _post_auto_done(notifier, result, freee_result: dict) -> str | None:
                     f"*摘要:* {result.memo or '（なし）'}\n"
                     f"*請求書:* {inv.get('invoice_number', inv.get('id', '—')) if inv else '—'} "
                     f"— {inv.get('partner_name', '—') if inv else '—'}"
-               ),
+                ),
                 notifier._context(
-                    f"z{'freee消込完了 ✅' if freee_ok else '⚠️ freee消込失敗 — 手動確認要'} | "
+                    f"{'freee消込完了 ✅' if freee_ok else '⚠️ freee消込失敗 — 手動確認要'} | "
                     f"信頼度: {int(result.confidence * 100)}%"
                 ),
             ]
