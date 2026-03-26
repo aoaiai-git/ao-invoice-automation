@@ -24,7 +24,7 @@ def seed_name_mapping():
     sheets = ReconciliationSheetsClient()
     freee = FreeeReconcileClient()
 
-    # シート初期化
+    # シード儝期化
     sheets.ensure_sheets_exist()
 
     # 既存マッピングを取得（重複防止）
