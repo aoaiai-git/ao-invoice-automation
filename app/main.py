@@ -14,6 +14,7 @@ from fastapi.responses import JSONResponse
 import hmac
 import hashlib
 import time
+import re
 
 from .gmail_handler import GmailHandler
 from .invoice_analyzer import InvoiceAnalyzer
@@ -23,6 +24,7 @@ from .drive_handler import DriveHandler
 from .reconciliation.runner import run_reconciliation
 from .reconciliation.seed_data import seed_name_mapping
 from .reconciliation.slack_handler import handle_reconciliation_action as handle_recon_action
+from . import idiott_handler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -158,6 +160,25 @@ async def slack_webhook(request: Request):
         await handle_rejection(invoice_data, payload, user_name)
     elif action_id.startswith("recon_"):
         await handle_recon_action(action_id, invoice_data, payload, user_name)
+    elif action_id in ("idiott_create_invoice", "idiott_create_invoice_bulk"):
+        billing_month = value or idiott_handler.get_billing_month()
+        await idiott_handler.handle_create_invoice(
+            slack_client=slack.client,
+            channel=channel,
+            message_ts=message_ts,
+            billing_month=billing_month,
+            user_id=user_id,
+        )
+    elif action_id == "idiott_freee_register":
+        billing_month = value or idiott_handler.get_billing_month()
+        await idiott_handler.handle_freee_register(
+            slack_client=slack.client,
+            freee_handler=freee,
+            channel=channel,
+            message_ts=message_ts,
+            billing_month=billing_month,
+            user_id=user_id,
+        )
     else:
         logger.warning(f"Unknown action_id: {action_id}")
 
@@ -236,6 +257,19 @@ async def process_invoice_message(msg: dict):
     logger.info(f"Analyzing invoice with Claude AI...")
     analysis = await analyzer.analyze_invoice(pdf_data, sender, subject)
     logger.info(f"Analysis result: {analysis}")
+
+    # アイディオット業務委託者チェック
+    if await idiott_handler.is_idiott_contact(sender):
+        contractor_name = re.sub(r'<[^>]+>', '', sender).strip()
+        await idiott_handler.process_contractor_invoice(
+            slack_client=slack.client,
+            sender_email=sender,
+            contractor_name=contractor_name,
+            analysis=analysis,
+            pdf_data=pdf_data,
+            drive_handler=drive,
+        )
+        return
 
     invoice_payload = {
         "msg_id": msg_id,
