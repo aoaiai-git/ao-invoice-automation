@@ -1,7 +1,7 @@
 """
 ao-invoice-automation
-受信メールの請求書PDFを自動処理するシステム
-Gmail Pub/Sub → Claude AI 分析 → Slack承認 → freee登録 + Google Drive保存
+åä¿¡ã¡ã¼ã«ã®è«æ±æ¸PDFãèªåå¦çããã·ã¹ãã 
+Gmail Pub/Sub â Claude AI åæ â Slacfæ¿èª â freeeç»é² + Google Driveä¿å­
 """
 import os
 import json
@@ -15,7 +15,6 @@ import hmac
 import hashlib
 import time
 import re
-
 from .gmail_handler import GmailHandler
 from .invoice_analyzer import InvoiceAnalyzer
 from .slack_handler import SlackHandler
@@ -31,14 +30,14 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="AO Invoice Automation")
 
-# 各ハンドラーの初期化
+# åãã³ãã©ã¼ã®åæå
 gmail = GmailHandler()
 analyzer = InvoiceAnalyzer()
 slack = SlackHandler()
 freee = FreeeHandler()
 drive = DriveHandler()
 
-# 二重処理防止（in-memory: サーバー再起動でリセット）
+# äºéå¦çé²æ­¢ï¼in-memory: ãµã¼ãã¼åèµ·åã§ãªã»ããï¼
 processed_approvals: set = set()
 processed_rejections: set = set()
 
@@ -82,12 +81,12 @@ async def gmail_webhook(request: Request):
 
 @app.post("/webhooks/slack")
 async def slack_webhook(request: Request):
-    """Slack インタラクティブ webhook（ボタン押下）"""
+    """Slack ã¤ã³ã¿ã©ã¯ãã£ã webhookï¼ãã¿ã³æ¼ä¸ï¼"""
     body_bytes = await request.body()
     timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
     slack_signature = request.headers.get("X-Slack-Signature", "")
 
-    # リプレイ攻撃防止
+    # ãªãã¬ã¤æ»æé²æ­¢
     if abs(time.time() - float(timestamp or 0)) > 300:
         raise HTTPException(status_code=401, detail="Request too old")
 
@@ -100,7 +99,7 @@ async def slack_webhook(request: Request):
         if not hmac.compare_digest(computed, slack_signature):
             raise HTTPException(status_code=401, detail="Invalid signature")
 
-    # フォームデータのパース
+    # ãã©ã¼ã ãã¼ã¿ã®ãã¼ã¹
     try:
         from urllib.parse import parse_qs
         form_data = parse_qs(body_bytes.decode())
@@ -111,43 +110,39 @@ async def slack_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Invalid payload")
 
     action_id = payload.get("actions", [{}])[0].get("action_id", "")
-    action_value = payload.get("actions", [{}])[0].get("value", "{}")
+    value = payload.get("actions", [{}])[0].get("value", "")
+    channel = payload.get("channel", {}).get("id", "")
+    message_ts = payload.get("message", {}).get("ts", "")
+    user_id = payload.get("user", {}).get("id", "")
     user_name = payload.get("user", {}).get("name", "unknown")
+
     logger.info(f"Slack action: {action_id} by {user_name}")
 
     try:
-        invoice_data = json.loads(action_value)
+        invoice_data = json.loads(value)
     except Exception:
         invoice_data = {}
 
-    # ===== ボタン二重押し防止：メッセージが既に処理済かチェック =====
-    # actionsブロックが存在しない = 承認/却下済でボタンが除去されている
+    # ===== ãã¿ã³äºéæ¼ãé²æ­¢ï¼ã¡ãã»ã¼ã¸ãæ¢ã«å¦çæ¸ããã§ãã¯ =====
     if action_id in ("approve_invoice", "reject_invoice"):
         _message_blocks = payload.get("message", {}).get("blocks", [])
         _has_action_block = any(b.get("type") == "actions" for b in _message_blocks)
-
         if not _has_action_block:
-            _channel = payload.get("channel", {}).get("id", "")
-            _user_id = payload.get("user", {}).get("id", "")
-
-            # メッセージの現在のテキストから状態を判別
             _msg_text = ""
             for blk in _message_blocks:
                 if blk.get("type") == "section":
                     _msg_text = blk.get("text", {}).get("text", "")
                     break
-
-            if "承認済み" in _msg_text or "freee登録完了" in _msg_text:
-                _ephemeral_text = "⚠️ この請求書はすでに承認済み・freee登録済みです。"
-            elif "却下済み" in _msg_text:
-                _ephemeral_text = "⚠️ この請求書はすでに却下済みです。"
+            if "æ¿èªæ¸ã¿" in _msg_text or "freeeç»é²å®äº" in _msg_text:
+                _ephemeral_text = "â ï¸ ãã®è«æ±æ¸ã¯ãã§ã«æ¿èªæ¸ã¿ã»freeeç»é²æ¸ã¿ã§ãã"
+            elif "å´ä¸æ¸ã¿" in _msg_text:
+                _ephemeral_text = "â ï¸ ãã®è«æ±æ¸ã¯ãã§ã«å´ä¸æ¸ã¿ã§ãã"
             else:
-                _ephemeral_text = "⚠️ この請求書は既に処理済みです。"
-
+                _ephemeral_text = "â ï¸ ãã®è«æ±æ¸ã¯æ¢ã«å¦çæ¸ã¿ã§ãã"
             try:
                 slack.client.chat_postEphemeral(
-                    channel=_channel,
-                    user=_user_id,
+                    channel=channel,
+                    user=user_id,
                     text=_ephemeral_text,
                 )
             except Exception as _e:
@@ -187,7 +182,7 @@ async def slack_webhook(request: Request):
 
 @app.post("/webhooks/slack/events")
 async def slack_events_webhook(request: Request):
-    """Slack Event API webhook（チャンネルへのPDFファイルアップロード検知）"""
+    """Slack Event API webhookï¼ãã£ã³ãã«ã¸ã®PDFãã¡ã¤ã«ã¢ããã­ã¼ãæ¤ç¥ï¼"""
     body_bytes = await request.body()
     try:
         body = json.loads(body_bytes.decode())
@@ -195,12 +190,12 @@ async def slack_events_webhook(request: Request):
         logger.error(f"Failed to parse Slack events webhook body: {e}")
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
-    # URL Verification（Slack App設定時の確認 - 署名なしで応答）
+    # URL Verificationï¼Slack Appè¨­å®æã®ç¢ºèª - ç½²åãªãã§å¿ç­ï¼
     if body.get("type") == "url_verification":
         logger.info("Slack URL verification challenge received")
         return JSONResponse({"challenge": body.get("challenge")})
 
-    # 署名検証
+    # ç½²åæ¤è¨¼
     timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
     slack_signature = request.headers.get("X-Slack-Signature", "")
     signing_secret = os.environ.get("SLACK_SIGNING_SECRET", "")
@@ -219,17 +214,16 @@ async def slack_events_webhook(request: Request):
         except Exception as e:
             logger.warning(f"Slack signature verification failed: {e}")
 
-    # Event callback 処理
+    # Event callback å¦ç
     if body.get("type") == "event_callback":
         event = body.get("event", {})
         event_type = event.get("type", "")
         subtype = event.get("subtype", "")
 
-        # ファイル共有イベント: チャンネルへのPDFアップロードを検知
         if event_type == "message" and subtype == "file_share":
-            channel = event.get("channel", "")
+            ch = event.get("channel", "")
             invoice_channel = os.environ.get("SLACK_INVOICE_CHANNEL_ID", "C0ANE67AU2X")
-            if channel == invoice_channel:
+            if ch == invoice_channel:
                 files = event.get("files", [])
                 for file_info in files:
                     mimetype = file_info.get("mimetype", "")
@@ -243,7 +237,7 @@ async def slack_events_webhook(request: Request):
 
 
 async def process_invoice_message(msg: dict):
-    """Gmailメッセージから請求書を処理"""
+    """Gmailã¡ãã»ã¼ã¸ããè«æ±æ¸ãå¦ç"""
     msg_id = msg.get("id", "")
     subject = msg.get("subject", "")
     sender = msg.get("sender", "")
@@ -258,7 +252,18 @@ async def process_invoice_message(msg: dict):
     analysis = await analyzer.analyze_invoice(pdf_data, sender, subject)
     logger.info(f"Analysis result: {analysis}")
 
-    # アイディオット業務委託者チェック
+    # 1. ç¿ç°ããï¼è¨ç»å¤ï¼ãã§ãã¯ - idiott_contacts ããåã«ç¢ºèª
+    if idiott_handler.SARUTA_EMAIL.lower() in sender.lower():
+        logger.info(f"Saruta reference invoice received from {sender}")
+        await idiott_handler.process_saruta_invoice(
+            slack_client=slack.client,
+            analysis=analysis,
+            pdf_data=pdf_data,
+            drive_handler=drive,
+        )
+        return
+
+    # 2. ã¢ã¤ãã£ãªããæ¥­åå§è¨èãã§ãã¯
     if await idiott_handler.is_idiott_contact(sender):
         contractor_name = re.sub(r'<[^>]+>', '', sender).strip()
         await idiott_handler.process_contractor_invoice(
@@ -271,6 +276,7 @@ async def process_invoice_message(msg: dict):
         )
         return
 
+    # 3. éå¸¸ã®è«æ±æ¸æ¿èªãã­ã¼
     invoice_payload = {
         "msg_id": msg_id,
         "subject": subject,
@@ -284,7 +290,7 @@ async def process_invoice_message(msg: dict):
 
 
 async def process_slack_file_upload(event: dict, file_info: dict):
-    """Slackにアップロードされた請求書PDFを処理（バックグラウンド）"""
+    """Slackã«ã¢ããã­ã¼ããããè«æ±æ¸PDFãå¦çï¼ããã¯ã°ã©ã¦ã³ãï¼"""
     file_id = file_info.get("id", "")
     filename = file_info.get("name", "invoice.pdf")
     url_private = file_info.get("url_private_download", "") or file_info.get("url_private", "")
@@ -317,7 +323,7 @@ async def process_slack_file_upload(event: dict, file_info: dict):
 
 
 async def handle_approval(invoice_data: dict, payload: dict, user_name: str):
-    """請求書承認処理"""
+    """è«æ±æ¸æ¿èªå¦ç"""
     channel = payload.get("channel", {}).get("id", "")
     message_ts = payload.get("message", {}).get("ts", "")
     user_id = payload.get("user", {}).get("id", "")
@@ -325,28 +331,24 @@ async def handle_approval(invoice_data: dict, payload: dict, user_name: str):
     subject = invoice_data.get("subject", "")
     vendor_name = invoice_data.get("vendor_name", "")
 
-    # ===== 二重クリック防止（in-memory）=====
     if message_ts in processed_approvals:
         logger.warning(f"Duplicate approval attempt for ts={message_ts} by {user_name}")
         try:
             slack.client.chat_postEphemeral(
                 channel=channel,
                 user=user_id,
-                text="⚠️ この請求書はすでに承認済み・freee登録済みです。",
+                text="â ï¸ ãã®è«æ±æ¸ã¯ãã§ã«æ¿èªæ¸ã¿ã»freeeç»é²æ¸ã¿ã§ãã",
             )
         except Exception as e:
             logger.error(f"Failed to post ephemeral: {e}")
         return
 
-    # 早期にマーク（並行クリックを防ぐ）
     processed_approvals.add(message_ts)
     logger.info(f"Approving invoice: {msg_id} / {subject} by {user_name}")
 
-    # PDFをGoogle Driveに保存（請求書/YYYY-MM/業者名.pdf）
     pdf_b64 = invoice_data.get("pdf_data_b64", "")
     pdf_filename = invoice_data.get("pdf_filename", "invoice.pdf")
     invoice_date = invoice_data.get("invoice_date", datetime.now().strftime("%Y-%m-%d"))
-
     if pdf_b64:
         pdf_bytes = base64.b64decode(pdf_b64)
         drive_url = await drive.upload_invoice(
@@ -360,7 +362,6 @@ async def handle_approval(invoice_data: dict, payload: dict, user_name: str):
         drive_url = None
         logger.warning("No PDF data to upload")
 
-    # ===== freee 重複チェック =====
     existing_deal = await freee.check_duplicate(invoice_data)
     if existing_deal:
         deal_id = existing_deal.get("id", "")
@@ -369,11 +370,10 @@ async def handle_approval(invoice_data: dict, payload: dict, user_name: str):
             slack.client.chat_postEphemeral(
                 channel=channel,
                 user=user_id,
-                text=f"⚠️ この請求書はすでにfreeeに登録されています（取引ID: {deal_id}）。",
+                text=f"â ï¸ ãã®è«æ±æ¸ã¯ãã§ã«freeeã«ç»é²ããã¦ãã¾ãï¼åå¼ID: {deal_id}ï¼ã",
             )
         except Exception as e:
             logger.error(f"Failed to post ephemeral for duplicate: {e}")
-
         await slack.update_invoice_message(
             channel=channel,
             ts=message_ts,
@@ -384,11 +384,9 @@ async def handle_approval(invoice_data: dict, payload: dict, user_name: str):
         )
         return
 
-    # freeeに経費登録
     freee_result = await freee.create_expense(invoice_data)
     logger.info(f"Created freee deal: {freee_result}")
 
-    # Slackメッセージを更新（ボタンを除去して完了状態に）
     await slack.update_invoice_message(
         channel=channel,
         ts=message_ts,
@@ -398,7 +396,6 @@ async def handle_approval(invoice_data: dict, payload: dict, user_name: str):
         freee_result=freee_result,
     )
 
-    # 承認スレッドへ完了通知を返信
     await slack.post_completion_reply(
         channel=channel,
         ts=message_ts,
@@ -409,20 +406,19 @@ async def handle_approval(invoice_data: dict, payload: dict, user_name: str):
 
 
 async def handle_rejection(invoice_data: dict, payload: dict, user_name: str):
-    """請求書却下処理"""
+    "" è«æ±æ¸å´ä¸å¦ç"""
     msg_id = invoice_data.get("msg_id", "")
     channel = payload.get("channel", {}).get("id", "")
     message_ts = payload.get("message", {}).get("ts", "")
     user_id = payload.get("user", {}).get("id", "")
 
-    # ===== 二重クリック防止（in-memory）=====
     if message_ts in processed_rejections:
         logger.warning(f"Duplicate rejection attempt for ts={message_ts} by {user_name}")
         try:
             slack.client.chat_postEphemeral(
                 channel=channel,
                 user=user_id,
-                text="⚠️ この請求書はすでに却下済みです。",
+                text="â ï¸ ãã®è«æ±æ¸ã¯ãã§ã«å´ä¸æ¸ã¿ã§ãã",
             )
         except Exception as e:
             logger.error(f"Failed to post ephemeral: {e}")
