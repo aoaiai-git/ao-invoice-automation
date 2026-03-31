@@ -24,6 +24,7 @@ from .reconciliation.runner import run_reconciliation
 from .reconciliation.seed_data import seed_name_mapping
 from .reconciliation.slack_handler import handle_reconciliation_action as handle_recon_action
 from . import idiott_handler
+from . import ak_handler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
@@ -174,6 +175,25 @@ async def slack_webhook(request: Request):
             billing_month=billing_month,
             user_id=user_id,
         )
+    elif action_id == "ak_approve":
+        record_id = value
+        await ak_handler.handle_ak_approve(
+            slack_client=slack.client,
+            channel=channel,
+            message_ts=message_ts,
+            record_id=record_id,
+            user_id=user_id,
+            user_name=user_name,
+        )
+    elif action_id == "ak_reject":
+        record_id = value
+        await ak_handler.handle_ak_reject(
+            slack_client=slack.client,
+            channel=channel,
+            message_ts=message_ts,
+            record_id=record_id,
+            user_name=user_name,
+        )
     else:
         logger.warning(f"Unknown action_id: {action_id}")
 
@@ -276,6 +296,18 @@ async def process_invoice_message(msg: dict):
         )
         return
 
+    # 3. AK請求書チェック（AK→AO支払い + AO→Aidiot請求書作成）
+    if ak_handler.is_ak_sender(sender):
+        logger.info(f"AK invoice received from {sender}")
+        await ak_handler.process_ak_invoice(
+            slack_client=slack.client,
+            analysis=analysis,
+            pdf_data=pdf_data,
+            drive_handler=drive,
+        )
+        return
+
+    # 4. 通常の請求書承認フロー
     # 3. éå¸¸ã®è«æ±æ¸æ¿èªãã­ã¼
     invoice_payload = {
         "msg_id": msg_id,
