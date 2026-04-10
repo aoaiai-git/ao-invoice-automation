@@ -438,7 +438,7 @@ async def handle_approval(invoice_data: dict, payload: dict, user_name: str):
 
 
 async def handle_rejection(invoice_data: dict, payload: dict, user_name: str):
-    "" 請求書却下処理"""
+    """請求書却下処理"""
     msg_id = invoice_data.get("msg_id", "")
     channel = payload.get("channel", {}).get("id", "")
     message_ts = payload.get("message", {}).get("ts", "")
