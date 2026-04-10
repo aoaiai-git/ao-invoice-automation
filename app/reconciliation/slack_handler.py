@@ -112,7 +112,7 @@ async def _handle_approve(
         # Slackメッセージ更新
         if ts:
             result_text = (
-                f"*入金:* ¥{amount:,}　→　*請求書:* {invoice_no or invoice_id_str or '—'}"
+                f"*入金:* �{amount:,}　→　*請求書:* {invoice_no or invoice_id_str or '—'}"
             )
             notifier.update_approved(ts, result_text, user_name, freee_result)
         logger.info(f"Approved: txn_id={txn_id}, freee={freee_result.get('success')}")
@@ -141,7 +141,7 @@ async def _handle_reject(
         sheets.update_record_status(txn_id, "rejected", processed_by=user_name,
                                     notes="Slackで却下")
         if ts:
-            notifier.update_rejected(ts, f"*入金金額:* ¥{amount:,}", user_name)
+            notifier.update_rejected(ts, f"*入金金額:* �{amount:,}", user_name)
         logger.info(f"Rejected: txn_id={txn_id}")
     except Exception as e:
         logger.error(f"Rejection error txn_id={txn_id}: {e}", exc_info=True)
@@ -191,7 +191,7 @@ async def _handle_manual(
         # Slackメッセージ更新
         if ts:
             inv_info = f"請求書: {invoice_no or invoice_id_str or '—'}"
-            txn_info = f"*入金:* ¥{amount:,}"
+            txn_info = f"*入金:* �{amount:,}"
             notifier.update_manual_selected(ts, txn_info, inv_info, user_name, freee_result)
 
         logger.info(f"Manual: txn_id={txn_id}, invoice={invoice_id_str}, freee={freee_result.get('success')}")
@@ -213,7 +213,7 @@ async def _handle_skip(
     try:
         sheets.update_record_status(txn_id, "skipped", processed_by=user_name, notes="Slackでスキップ")
         if ts:
-            notifier.update_skipped(ts, f"*入金金額:* ¥{amount:,}", user_name)
+            notifier.update_skipped(ts, f"*入金金額:* �{amount:,}", user_name)
         logger.info(f"Skipped: txn_id={txn_id}")
     except Exception as e:
         logger.error(f"Skip error txn_id={txn_id}: {e}", exc_info=True)

@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 MATCH_EXACT = "exact"             # Step1: 完全一致（金額 + 取引先名）
 MATCH_INVOICE_NO = "invoice_no"   # Step3: 金額一致 + 請求書番号
 MATCH_KEYWORD = "keyword"         # Step2: 金額一致 + キーワード
-MATCH_TAX_DIFF = "tax_diff"       # Step4: 金額±消費税 + 取引先
+MATCH_TAX_DIFF = "tax_diff"       # Step4: 金額�消費税 + 取引先
 MATCH_COMBINED = "combined"       # Step5: 複数入金→1請求書
 MATCH_SPLIT = "split"             # Step6: 1入金→複数請求書
 MATCH_MANUAL = "manual_candidate" # Step7: 手動選択候補
@@ -155,7 +155,7 @@ class MatchingEngine:
                 return MatchResult(txn=txn, match_type=MATCH_INVOICE_NO, confidence=0.95,
                                    matched_invoices=[inv], notes="金額一致 + 請求書番号マッチ")
 
-        # Step 4: 金額±消費税の差異 + 取引先マッチ
+        # Step 4: 金額�消費税の差異 + 取引先マッチ
         for inv in invoices:
             if self._amount_tax_tolerant(amount, inv) and self._partner_in_memo(inv, memo):
                 inv_amt = self._inv_amount(inv)

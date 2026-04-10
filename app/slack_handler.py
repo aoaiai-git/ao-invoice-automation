@@ -33,7 +33,7 @@ class SlackHandler:
 
         # 金額フォーマット
         if currency == "JPY":
-            amount_str = f"¥{amount:,}"
+            amount_str = f"�{amount:,}"
         else:
             amount_str = f"{amount:,.2f} {currency}"
 

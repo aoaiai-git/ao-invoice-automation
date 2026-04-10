@@ -111,14 +111,14 @@ class ReconciliationSlackNotifier:
         blocks = [
             self._header(f"{warning}入金消込 — {match_label}（信頼度 {confidence_pct}%）"),
             self._section(
-                f"*入金日:* {result.txn_date}　｜　*金額:* ¥{result.amount:,}\n"
+                f"*入金日:* {result.txn_date}　｜　*金額:* �{result.amount:,}\n"
                 f"*摘要:* {result.memo or '（なし）'}"
             ),
             self._divider(),
             self._section(
                 f"*請求書:* <{inv_url}|{inv.get('invoice_number', inv.get('id', ''))}>\n"
                 f"*取引先:* {inv.get('partner_name', '—')}\n"
-                f"*請求金額:* ¥{int(inv.get('total_amount', 0)):,}　｜　*発行日:* {inv.get('issue_date', '—')}"
+                f"*請求金額:* �{int(inv.get('total_amount', 0)):,}　｜　*発行日:* {inv.get('issue_date', '—')}"
             ),
         ]
 
@@ -129,7 +129,7 @@ class ReconciliationSlackNotifier:
             blocks.append(self._section(
                 f"*請求書2:* <{inv2_url}|{inv2.get('invoice_number', inv2.get('id', ''))}>\n"
                 f"*取引先:* {inv2.get('partner_name', '—')}\n"
-                f"*請求金額:* ¥{int(inv2.get('total_amount', 0)):,}"
+                f"*請求金額:* �{int(inv2.get('total_amount', 0)):,}"
             ))
 
         blocks.append(self._context(f"マッチ理由: {result.notes}"))
@@ -153,14 +153,14 @@ class ReconciliationSlackNotifier:
             ],
         })
 
-        return self._post(blocks, text=f"消込確認: ¥{result.amount:,} ({match_label})")
+        return self._post(blocks, text=f"消込確認: �{result.amount:,} ({match_label})")
 
     def post_manual_match(self, result: MatchResult) -> Optional[str]:
         """手動マッチング選択依頼（候補リスト + 選択ボタン）"""
         blocks = [
             self._header("🔍 入金消込 — 手動選択が必要です"),
             self._section(
-                f"*入金日:* {result.txn_date}　｜　*金額:* ¥{result.amount:,}\n"
+                f"*入金日:* {result.txn_date}　｜　*金額:* �{result.amount:,}\n"
                 f"*摘要:* {result.memo or '（なし）'}"
             ),
             self._divider(),
@@ -175,7 +175,7 @@ class ReconciliationSlackNotifier:
             inv_no = inv.get("invoice_number", str(inv.get("id", "")))
 
             blocks.append(self._section(
-                f"*候補{i}:* <{inv_url}|{inv_no}> — {partner} — ¥{inv_amt:,}"
+                f"*候補{i}:* <{inv_url}|{inv_no}> — {partner} — �{inv_amt:,}"
             ))
             action_elements.append({
                 "type": "button",
@@ -203,7 +203,7 @@ class ReconciliationSlackNotifier:
         })
 
         blocks.append({"type": "actions", "elements": action_elements})
-        return self._post(blocks, text=f"手動消込選択: ¥{result.amount:,}")
+        return self._post(blocks, text=f"手動消込選択: �{result.amount:,}")
 
     def post_unmatched(self, result: MatchResult) -> Optional[str]:
         """未マッチ通知（情報のみ）"""
@@ -214,7 +214,7 @@ class ReconciliationSlackNotifier:
         blocks = [
             self._header("⚠️ 入金消込 — 候補なし"),
             self._section(
-                f"*入金日:* {result.txn_date}　｜　*金額:* ¥{result.amount:,}\n"
+                f"*入金日:* {result.txn_date}　｜　*金額:* �{result.amount:,}\n"
                 f"*摘要:* {result.memo or '（なし）'}\n\n"
                 f"自動・手動いずれのマッチング候補も見つかりませんでした。\n"
                 f"<{freee_url}|freeeで手動確認してください>。"
@@ -233,7 +233,7 @@ class ReconciliationSlackNotifier:
                 }],
             },
         ]
-        return self._post(blocks, text=f"消込候補なし: ¥{result.amount:,}")
+        return self._post(blocks, text=f"消込候補なし: �{result.amount:,}")
 
     def post_summary(
         self,

@@ -216,11 +216,11 @@ def _post_auto_done(notifier, result, freee_result: dict) -> str | None:
     try:
         ts = notifier.client.chat_postMessage(
             channel=notifier.channel,
-            text=f"消込自動完了: ¥{result.amount:,}",
+            text=f"消込自動完了: �{result.amount:,}",
             blocks=[
                 notifier._header(f"✅ 自動消込完了 — {_match_type_label(result.match_type)}"),
                 notifier._section(
-                    f"*入金日:* {result.txn_date}　｜　*金額:* ¥{result.amount:,}\n"
+                    f"*入金日:* {result.txn_date}　｜　*金額:* �{result.amount:,}\n"
                     f"*摘要:* {result.memo or '（なし）'}\n"
                     f"*請求書:* {inv.get('invoice_number', inv.get('id', '—')) if inv else '—'} "
                     f"— {inv.get('partner_name', '—') if inv else '—'}"

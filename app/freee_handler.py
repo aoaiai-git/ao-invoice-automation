@@ -71,7 +71,7 @@ class FreeeHandler:
                 "offset": 0,
             }
 
-            # 請求日 ±7日の範囲で検索
+            # 請求日 �7日の範囲で検索
             if invoice_date:
                 try:
                     dt = datetime.strptime(invoice_date, "%Y-%m-%d")

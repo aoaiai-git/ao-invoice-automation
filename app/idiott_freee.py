@@ -108,5 +108,5 @@ def create_idiott_invoice_sync(
 
     invoice = resp.json().get("invoice", {})
     invoice_id = invoice.get("id")
-    logger.info(f"freee invoice created: ID={invoice_id}, ¥{grand_total_incl:,}")
+    logger.info(f"freee invoice created: ID={invoice_id}, �{grand_total_incl:,}")
     return invoice_id
